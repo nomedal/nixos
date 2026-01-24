@@ -1,0 +1,20 @@
+# Backup files
+*.bak
+*~
+\#*\#
+
+# Result symlinks from nix-build
+result
+result-*
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Hardware configs are machine-specific (optional - uncomment if you want to gitignore them)
+# hosts/*/hardware-configuration.nix
