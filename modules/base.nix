@@ -73,6 +73,7 @@
 
   # Other services
   services.tailscale.enable = true;
+  services.mullvad-vpn.enable = true;
   virtualisation.docker.enable = true;
   programs.dconf.enable = true;
 
