@@ -52,6 +52,14 @@
           hostname = "laptop";
           extraModules = [ ./modules/hardware/intel-arc.nix ];
         };
+
+        # Live ISO for testing on laptop
+        laptop-iso = nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [
+            ./hosts/laptop/iso.nix
+          ];
+        };
       };
     };
 }
