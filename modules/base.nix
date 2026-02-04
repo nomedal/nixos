@@ -207,6 +207,7 @@
     # Gaming
     steam
     gamescope
+    bolt-launcher
 
     # Terminals
     wezterm
