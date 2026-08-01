@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Reload Hyprland config when a monitor reconnects, fixing cursor boundary state."""
+import socket, os, subprocess, time
+
+def main():
+    sig = os.environ["HYPRLAND_INSTANCE_SIGNATURE"]
+    rt  = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    path = f"{rt}/hypr/{sig}/.socket2.sock"
+
+    while True:
+        try:
+            with socket.socket(socket.AF_UNIX) as s:
+                s.connect(path)
+                buf = b""
+                while chunk := s.recv(4096):
+                    buf += chunk
+                    while b"\n" in buf:
+                        line, buf = buf.split(b"\n", 1)
+                        if line.startswith(b"monitoradded"):
+                            time.sleep(2)
+                            subprocess.run(["hyprctl", "reload"])
+        except Exception:
+            time.sleep(1)
+
+main()
