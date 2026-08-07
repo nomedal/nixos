@@ -15,5 +15,6 @@
     procs
     bottom
     libqalculate
+    termdown
   ];
 }
