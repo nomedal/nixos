@@ -32,8 +32,11 @@
     Install.WantedBy = [ "hyprland-session.target" ];
   };
 
-  xdg.configFile."easyeffects/output/990DT.json".source =
+  # EasyEffects 8.x reads presets from $XDG_DATA_HOME, not $XDG_CONFIG_HOME.
+  # Deploying to ~/.config/easyeffects/ makes EE try (and fail, on the
+  # read-only nix-store symlink) to migrate them on every startup.
+  xdg.dataFile."easyeffects/output/990DT.json".source =
     ../configs/990DT.json;
-  xdg.configFile."easyeffects/input/SM58-Disco.json".source =
+  xdg.dataFile."easyeffects/input/SM58-Disco.json".source =
     ../configs/SM58-Disco.json;
 }

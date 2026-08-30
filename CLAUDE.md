@@ -39,7 +39,8 @@ Read this fully before touching any files.
 - NVIDIA RTX 3070 via `modules/hardware/nvidia.nix`
 - 4TB HDDs (sda, sdb) automounted via ntfs3
 - `/etc/nixos` owned by `user` for direct git access without sudo
-- EasyEffects presets (`990DT` output, `SM58-Disco` input) in `configs/`, deployed via `xdg.configFile` in `home/desktop.nix`
+- EasyEffects presets (`990DT` output, `SM58-Disco` input) in `configs/`, deployed via `xdg.dataFile`
+  in `home/desktop.nix` (EE 8.x reads presets from `~/.local/share/easyeffects/`, not `~/.config/`)
 - `hypr-monitor-watch` (reloads Hyprland on monitoradded) runs as `systemd.user.services.hypr-monitor-watch`, bound to `hyprland-session.target` — do NOT use `hl.exec_once` (nil in 0.55)
 - Monitors identified by `desc:` strings in `desktop.lua` (not port names like DP-1) — prevents swap after power cycle
 - Tray-icon autostart (Mullvad, Signal, Vesktop, MEGAsync): each registers its StatusNotifierItem
