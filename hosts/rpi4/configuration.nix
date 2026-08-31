@@ -89,7 +89,8 @@
     #   ADMIN_TOKEN=<argon2id hash>
     #   SMTP_PASSWORD=<password>
     vaultwarden = {
-      image            = "vaultwarden/server:latest";
+      # GHCR mirror — avoids Docker Hub's authenticated-pull (PAT) requirement
+      image            = "ghcr.io/dani-garcia/vaultwarden:latest";
       autoStart        = true;
       ports            = [ "1337:80" ];
       volumes          = [ "/var/lib/vaultwarden:/data" ];

@@ -65,7 +65,14 @@ Read this fully before touching any files.
 - First nvim launch bootstraps lazy.nvim and downloads plugins (expected)
 - **rpi4 placeholder IPs**: `hosts/rpi4/configuration.nix` has `YOUR_STATIC_IP`, `YOUR_UPSTREAM_GATEWAY`,
   `YOUR_DOWNSTREAM_GATEWAY`, `YOUR_DHCP_START`, `YOUR_DHCP_END` — real values kept out of git for privacy.
-  Fill them in locally before deploying.
+  Fill them in locally before deploying. Consequence: the rpi4 config does not `nix eval` from the
+  pristine repo (`toInt: Could not convert "YOUR_DOWNSTREAM_GATEWAY"`), so it must be built on the rpi4
+  itself, where the real values are filled in.
+- **rpi4 container images**: Vaultwarden pulls from `ghcr.io/dani-garcia/vaultwarden:latest`, not Docker
+  Hub — Docker Hub now requires an authenticated (PAT) pull. Keep new rpi4 containers on GHCR/quay where
+  possible. Vaultwarden must be kept roughly current with the Bitwarden desktop/extension client versions
+  (which bump via `nixpkgs`/Brave) — a client too new for the server fails login while the web vault,
+  served by Vaultwarden itself, still works.
 
 ---
 
