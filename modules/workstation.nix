@@ -58,6 +58,14 @@
   # PAM for DMS lock screen
   security.pam.services.hyprlock = {};
 
+  # gnome-keyring — Secret Service provider (org.freedesktop.secrets).
+  # Apps that store credentials/sessions there (Bitwarden desktop, VS Code,
+  # etc.) otherwise fail with "org.freedesktop.zbus.Error: The name is not
+  # activatable" and cannot stay logged in across restarts. The PAM line
+  # unlocks the login keyring with the greeter password at login.
+  services.gnome.gnome-keyring.enable = true;
+  security.pam.services.greetd.enableGnomeKeyring = true;
+
   # Desktop services
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;

@@ -70,9 +70,15 @@ Read this fully before touching any files.
   itself, where the real values are filled in.
 - **rpi4 container images**: Vaultwarden pulls from `ghcr.io/dani-garcia/vaultwarden:latest`, not Docker
   Hub — Docker Hub now requires an authenticated (PAT) pull. Keep new rpi4 containers on GHCR/quay where
-  possible. Vaultwarden must be kept roughly current with the Bitwarden desktop/extension client versions
-  (which bump via `nixpkgs`/Brave) — a client too new for the server fails login while the web vault,
-  served by Vaultwarden itself, still works.
+  possible.
+- **No Secret Service / keyring** (fixed 2026-09): this machine had no `org.freedesktop.secrets` provider
+  at all. Apps that store sessions/credentials there (Bitwarden desktop app first noticed it, after a
+  `nixpkgs` bump moved it 2026.6.1 → 2026.8.0 and the new version started requiring one) failed with
+  `org.freedesktop.zbus.Error: The name is not activatable` and couldn't stay logged in across restarts.
+  Fixed via `services.gnome.gnome-keyring.enable` + `security.pam.services.greetd.enableGnomeKeyring` in
+  `modules/workstation.nix`. (A same-week Bitwarden *browser extension* login failure was an unrelated,
+  simple case of corrupted local extension state after a Brave auto-update — fixed by removing and
+  reinstalling the extension, nothing to do with the keyring or the server.)
 
 ---
 
