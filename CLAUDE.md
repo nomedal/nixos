@@ -23,6 +23,12 @@ Read this fully before touching any files.
 - Wallpaper: `media/wallpapers/nebula_2560x1440.jpg` → `~/Pictures/wallpaper.jpg`
 - Cursor: Bibata-Modern-Classic (24px)
 - Mullvad VPN + Tailscale coexistence (`modules/mullvad-tailscale.nix`)
+- Firefox always launches split-tunnelled: `modules/workstation.nix` ships `firefox-split-tunnel`
+  (a `runCommand` + `lndir` rewrap of `pkgs.firefox`) instead of plain `firefox`. Its `bin/firefox`
+  and `firefox.desktop` both go through `mullvad-exclude`, so CLI, app launcher, and default-browser
+  opens all bypass the VPN — used for geo-locked streaming (F1 TV). Refuses to start if the Mullvad
+  daemon is down (no un-excluded fallback, by design). Firefox is single-instance: the first process
+  wins, so don't start an un-wrapped Firefox alongside it.
 - Docker, Flatpak, Tailscale, printing (CUPS)
 - Spotify: managed by `spicetify-nix` (`github:gerg-l/spicetify-nix` flake input) — do NOT use
   Flatpak or nixpkgs spotify. spicetify-nix pins a working Spotify version and wraps it with

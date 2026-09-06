@@ -1,4 +1,31 @@
-{ config, pkgs, lib, inputs, ... }: {
+{ config, pkgs, lib, inputs, ... }:
+let
+  # Firefox that always launches inside Mullvad's split-tunnel cgroup via
+  # `mullvad-exclude`, so its traffic bypasses the VPN. Used for geo-locked
+  # streaming (e.g. F1 TV). Keeps the `firefox` binary name, icon, and
+  # firefox.desktop id, so it also covers the app launcher and the
+  # default-browser / xdg-open path — every way Firefox gets started.
+  # If the Mullvad daemon is down, `mullvad-exclude` refuses to launch
+  # rather than leak un-excluded — intentional.
+  firefox-split-tunnel = pkgs.runCommand "firefox-split-tunnel"
+    {
+      nativeBuildInputs = [ pkgs.makeWrapper pkgs.xorg.lndir ];
+      meta = pkgs.firefox.meta // { mainProgram = "firefox"; };
+    } ''
+    mkdir -p $out
+    lndir -silent ${pkgs.firefox} $out
+
+    rm $out/bin/firefox
+    makeWrapper ${pkgs.mullvad}/bin/mullvad-exclude $out/bin/firefox \
+      --add-flags ${pkgs.firefox}/bin/firefox
+
+    rm $out/share/applications/firefox.desktop
+    substitute ${pkgs.firefox}/share/applications/firefox.desktop \
+      $out/share/applications/firefox.desktop \
+      --replace-fail "Exec=firefox" "Exec=$out/bin/firefox"
+  '';
+in
+{
   imports = [
     inputs.dms.nixosModules.dank-material-shell
     inputs.sysc-greet.nixosModules.default
@@ -152,7 +179,7 @@
     # Applications
     brave
     chromium
-    firefox
+    firefox-split-tunnel   # Firefox, always launched via `mullvad-exclude` (see let-block)
     bitwarden-desktop
     obsidian
     libreoffice-fresh
