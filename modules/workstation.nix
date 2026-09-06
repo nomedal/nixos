@@ -7,17 +7,26 @@ let
   # default-browser / xdg-open path — every way Firefox gets started.
   # If the Mullvad daemon is down, `mullvad-exclude` refuses to launch
   # rather than leak un-excluded — intentional.
+  #
+  # The launcher must call the setuid wrapper at ${config.security.wrapperDir}
+  # (from services.mullvad-vpn.enableExcludeWrapper), NOT pkgs.mullvad's plain
+  # mullvad-exclude — the store binary can't write
+  # /sys/fs/cgroup/net_cls/mullvad-exclusions/cgroup.procs as a normal user and
+  # exits without launching anything (symptom: "nothing happens").
+  firefox-st-launcher = pkgs.writeShellScript "firefox-split-tunnel-launcher" ''
+    exec ${config.security.wrapperDir}/mullvad-exclude ${pkgs.firefox}/bin/firefox "$@"
+  '';
   firefox-split-tunnel = pkgs.runCommand "firefox-split-tunnel"
     {
-      nativeBuildInputs = [ pkgs.makeWrapper pkgs.xorg.lndir ];
+      nativeBuildInputs = [ pkgs.xorg.lndir ];
       meta = pkgs.firefox.meta // { mainProgram = "firefox"; };
     } ''
     mkdir -p $out
     lndir -silent ${pkgs.firefox} $out
 
     rm $out/bin/firefox
-    makeWrapper ${pkgs.mullvad}/bin/mullvad-exclude $out/bin/firefox \
-      --add-flags ${pkgs.firefox}/bin/firefox
+    cp ${firefox-st-launcher} $out/bin/firefox
+    chmod +x $out/bin/firefox
 
     rm $out/share/applications/firefox.desktop
     substitute ${pkgs.firefox}/share/applications/firefox.desktop \

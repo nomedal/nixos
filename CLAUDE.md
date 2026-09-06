@@ -29,6 +29,12 @@ Read this fully before touching any files.
   opens all bypass the VPN — used for geo-locked streaming (F1 TV). Refuses to start if the Mullvad
   daemon is down (no un-excluded fallback, by design). Firefox is single-instance: the first process
   wins, so don't start an un-wrapped Firefox alongside it.
+  - **Must call the setuid wrapper** `${config.security.wrapperDir}/mullvad-exclude`
+    (`/run/wrappers/bin/...`, from `services.mullvad-vpn.enableExcludeWrapper = true`), NOT
+    `${pkgs.mullvad}/bin/mullvad-exclude`. The plain store binary can't write
+    `/sys/fs/cgroup/net_cls/mullvad-exclusions/cgroup.procs` as a normal user — it errors and never
+    launches Firefox (symptom: clicking Firefox does nothing). First cut of this used the store
+    binary and hit exactly that.
 - Docker, Flatpak, Tailscale, printing (CUPS)
 - Spotify: managed by `spicetify-nix` (`github:gerg-l/spicetify-nix` flake input) — do NOT use
   Flatpak or nixpkgs spotify. spicetify-nix pins a working Spotify version and wraps it with
