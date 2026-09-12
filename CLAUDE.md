@@ -64,6 +64,16 @@ Read this fully before touching any files.
   `home/profiles/contexts/workstation/default.nix`.
 
 ## Known issues / TODO
+- **EasyEffects "not working" is often just global bypass, not a rebuild regression**: EE looks
+  fully dead (no processing) but the service is running fine — it's `[EffectsPipelines] bypass=true`
+  in `~/.config/easyeffects/db/easyeffectsrc`, user state that `nixos-rebuild` never touches. Check
+  with `easyeffects -b 3` (1 = bypassed, 2 = active); fix with `easyeffects -b 2`. Toggling it via
+  the tray/window UI is easy to do by accident. Separately, quitting EE from the tray exits the
+  systemd unit (`Restart=on-failure` won't revive a clean exit) — relaunching by hand from the app
+  launcher starts a bare, non-service instance instead; bring back the real one with
+  `systemctl --user start easyeffects`. Note the laptop currently has no `990DT`/`SM58-Disco`
+  presets declared (those are desktop-only in `home/desktop.nix`), so an unbypassed laptop EE still
+  runs an empty effects chain.
 - **Desktop crashes (green screen), under investigation**: two crashes (2026-07-21, 2026-07-24)
   traced to Xid 56 (display engine error) caused by GPU BAR1 mapping exhaustion during Brave
   hardware video decode (VA-API → nvidia-vaapi-driver → nvidia-drm). Switched
