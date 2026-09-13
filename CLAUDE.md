@@ -23,12 +23,15 @@ Read this fully before touching any files.
 - Wallpaper: `media/wallpapers/nebula_2560x1440.jpg` → `~/Pictures/wallpaper.jpg`
 - Cursor: Bibata-Modern-Classic (24px)
 - Mullvad VPN + Tailscale coexistence (`modules/mullvad-tailscale.nix`)
-- Firefox always launches split-tunnelled: `modules/workstation.nix` ships `firefox-split-tunnel`
+- Firefox *launches* split-tunnelled: `modules/workstation.nix` ships `firefox-split-tunnel`
   (a `runCommand` + `lndir` rewrap of `pkgs.firefox`) instead of plain `firefox`. Its `bin/firefox`
   and `firefox.desktop` both go through `mullvad-exclude`, so CLI, app launcher, and default-browser
-  opens all bypass the VPN — used for geo-locked streaming (F1 TV). Refuses to start if the Mullvad
-  daemon is down (no un-excluded fallback, by design). Firefox is single-instance: the first process
-  wins, so don't start an un-wrapped Firefox alongside it.
+  opens all attempt to bypass the VPN — intended for geo-locked streaming (F1 TV). Refuses to start
+  if the Mullvad daemon is down (no un-excluded fallback, by design). Firefox is single-instance: the
+  first process wins, so don't start an un-wrapped Firefox alongside it.
+  - **The actual traffic exclusion is currently broken** — see Known issues below. The launch
+    mechanism itself works (no crash, PID correctly lands in the `mullvad-exclusions` cgroup), but
+    excluded traffic never reaches the internet.
   - **Must call the setuid wrapper** `${config.security.wrapperDir}/mullvad-exclude`
     (`/run/wrappers/bin/...`, from `services.mullvad-vpn.enableExcludeWrapper = true`), NOT
     `${pkgs.mullvad}/bin/mullvad-exclude`. The plain store binary can't write
@@ -74,6 +77,22 @@ Read this fully before touching any files.
   `systemctl --user start easyeffects`. Note the laptop currently has no `990DT`/`SM58-Disco`
   presets declared (those are desktop-only in `home/desktop.nix`), so an unbypassed laptop EE still
   runs an empty effects chain.
+- **Firefox split-tunnel exclusion doesn't actually work (found 2026-09-13)**: `mullvad-exclude`d
+  processes (Firefox included) get correctly placed in the `mullvad-exclusions` cgroup and Mullvad's
+  own nftables rules correctly tag their packets for bypass (ct mark `0x00000f41`, meta mark
+  `0x6d6f6c65`), but the kernel never re-routes them out the physical interface — they get routed
+  into `wg0-mullvad` anyway and Mullvad's own leak-prevention rule silently drops them there. Result:
+  every excluded app's traffic just times out (verified directly with `mullvad-exclude curl`, not
+  Firefox-specific). Confirmed via conntrack, and confirmed with a trivial non-cgroup test rule, that
+  nftables' `type route hook output` chain isn't triggering its automatic FIB re-lookup on mark change
+  at all on this system — a kernel/nftables-level bug, not a config issue. Ruled out: quantum
+  resistance, GotaTun vs kernel WireGuard, our own `mullvad-tailscale.nix` insertions, stale
+  split-tunnel PID registration, stale daemon state (fresh `systemctl restart mullvad-daemon` didn't
+  help either). Not a version regression — `flake.lock`/`mullvad-vpn` (2026.4) hasn't changed since
+  2026-08-31, a week before this feature was even added (2026-09-06), so it may never have actually
+  worked end-to-end. Workaround until fixed: fully `mullvad disconnect` when Firefox needs to bypass
+  the VPN, `mullvad connect` after. Matches Mullvad's own open GitHub issue #3813 ("Exclusion by
+  cgroup"). Next step if revisited: check kernel/nftables version compat or file upstream.
 - **Desktop crashes (green screen), under investigation**: two crashes (2026-07-21, 2026-07-24)
   traced to Xid 56 (display engine error) caused by GPU BAR1 mapping exhaustion during Brave
   hardware video decode (VA-API → nvidia-vaapi-driver → nvidia-drm). Switched
