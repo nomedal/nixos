@@ -33,6 +33,44 @@ let
       $out/share/applications/firefox.desktop \
       --replace-fail "Exec=firefox" "Exec=$out/bin/firefox"
   '';
+
+  # Signal, pinned to the gnome-libsecret password-store backend.
+  # Chromium/Electron's safeStorage picks a keyring backend by sniffing
+  # desktop-environment env vars at launch and persists the choice in
+  # ~/.config/Signal/config.json (safeStorageBackend); if the next launch's
+  # guess differs, it refuses to open with "the OS encryption keyring
+  # backend has changed from X to Y" instead of silently losing data.
+  # On this machine Signal's very first run apparently guessed "kwallet6"
+  # (no KWallet daemon is or has ever been configured here — see
+  # modules/hardware/*, home/profiles/contexts/workstation — just Dolphin/
+  # breeze Qt theming, which was apparently enough to trip Chromium's KDE
+  # heuristic once). Every later launch under Hyprland (XDG_CURRENT_DESKTOP
+  # unconditionally "Hyprland", no KDE markers) no longer matches that
+  # stored guess, so it errors instead of just using the real, working
+  # Secret Service provider (services.gnome.gnome-keyring, confirmed live
+  # on the session bus as org.freedesktop.secrets). Pass
+  # --password-store=gnome-libsecret explicitly so the backend is fixed
+  # and stops flip-flopping with env-var guessing on every launch.
+  signal-desktop-launcher = pkgs.writeShellScript "signal-desktop-launcher" ''
+    exec ${pkgs.signal-desktop}/bin/signal-desktop --password-store=gnome-libsecret "$@"
+  '';
+  signal-desktop-fixed = pkgs.runCommand "signal-desktop-fixed"
+    {
+      nativeBuildInputs = [ pkgs.xorg.lndir ];
+      meta = pkgs.signal-desktop.meta // { mainProgram = "signal-desktop"; };
+    } ''
+    mkdir -p $out
+    lndir -silent ${pkgs.signal-desktop} $out
+
+    rm $out/bin/signal-desktop
+    cp ${signal-desktop-launcher} $out/bin/signal-desktop
+    chmod +x $out/bin/signal-desktop
+
+    rm $out/share/applications/signal.desktop
+    substitute ${pkgs.signal-desktop}/share/applications/signal.desktop \
+      $out/share/applications/signal.desktop \
+      --replace-fail "Exec=signal-desktop %U" "Exec=$out/bin/signal-desktop %U"
+  '';
 in
 {
   imports = [
@@ -200,7 +238,7 @@ in
     # Communication
     discord
     vesktop
-    signal-desktop
+    signal-desktop-fixed  # Signal, always launched with --password-store=gnome-libsecret (see let-block)
     telegram-desktop
 
     # Gaming

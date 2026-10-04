@@ -147,6 +147,22 @@ Read this fully before touching any files.
   `modules/workstation.nix`. (A same-week Bitwarden *browser extension* login failure was an unrelated,
   simple case of corrupted local extension state after a Brave auto-update — fixed by removing and
   reinstalling the extension, nothing to do with the keyring or the server.)
+- **Signal "OS encryption keyring backend has changed" error** (2026-10): Electron's safeStorage
+  picks a password-store backend by sniffing desktop-env vars at launch and persists the choice in
+  `~/.config/Signal/config.json` (`safeStorageBackend`); on this machine Signal's first-ever run
+  apparently guessed `kwallet6` (no KWallet daemon has ever been configured here — just Dolphin/
+  breeze Qt theming), and every later launch under Hyprland (`XDG_CURRENT_DESKTOP=Hyprland`, no KDE
+  markers) no longer matches that stored guess, so Signal refuses to open instead of just using the
+  real Secret Service provider (`gnome-keyring`, confirmed live on the session bus). Fixed by pinning
+  the backend explicitly: `signal-desktop-fixed` in `modules/workstation.nix` rewraps
+  `pkgs.signal-desktop` (same lndir pattern as `firefox-split-tunnel`) to always launch with
+  `--password-store=gnome-libsecret`, so Chromium stops re-guessing on every launch. One-time manual
+  step after rebuilding: the old `encryptedKey` in `~/.config/Signal/config.json` was wrapped under
+  the stale `kwallet6` guess and can't be decrypted under the new backend — quit Signal, delete (or
+  back up) `~/.config/Signal/config.json`'s `encryptedKey`/`safeStorageBackend` keys (or the whole
+  `~/.config/Signal` dir for a clean slate), relaunch, and re-link the device via QR code. Local
+  chat history is lost (Signal doesn't escrow it server-side); the Signal *account* itself is not
+  affected.
 
 ---
 
