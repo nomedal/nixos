@@ -29,9 +29,10 @@ Read this fully before touching any files.
   opens all attempt to bypass the VPN — intended for geo-locked streaming (F1 TV). Refuses to start
   if the Mullvad daemon is down (no un-excluded fallback, by design). Firefox is single-instance: the
   first process wins, so don't start an un-wrapped Firefox alongside it.
-  - **The actual traffic exclusion is currently broken** — see Known issues below. The launch
-    mechanism itself works (no crash, PID correctly lands in the `mullvad-exclusions` cgroup), but
-    excluded traffic never reaches the internet.
+  - **Traffic exclusion confirmed working again as of 2026-10-10** on kernel 7.2.9 (current
+    `linuxPackages_latest`, nixpkgs 2026-10-08). Root cause was a kernel regression specific to
+    7.2.4 — see Known issues below. Not pinned; if this regresses on a future kernel bump, check
+    the kernel version first (symptom + fix history below) before re-investigating config/nftables.
   - **Must call the setuid wrapper** `${config.security.wrapperDir}/mullvad-exclude`
     (`/run/wrappers/bin/...`, from `services.mullvad-vpn.enableExcludeWrapper = true`), NOT
     `${pkgs.mullvad}/bin/mullvad-exclude`. The plain store binary can't write
@@ -77,22 +78,48 @@ Read this fully before touching any files.
   `systemctl --user start easyeffects`. Note the laptop currently has no `990DT`/`SM58-Disco`
   presets declared (those are desktop-only in `home/desktop.nix`), so an unbypassed laptop EE still
   runs an empty effects chain.
-- **Firefox split-tunnel exclusion doesn't actually work (found 2026-09-13)**: `mullvad-exclude`d
-  processes (Firefox included) get correctly placed in the `mullvad-exclusions` cgroup and Mullvad's
-  own nftables rules correctly tag their packets for bypass (ct mark `0x00000f41`, meta mark
-  `0x6d6f6c65`), but the kernel never re-routes them out the physical interface — they get routed
-  into `wg0-mullvad` anyway and Mullvad's own leak-prevention rule silently drops them there. Result:
-  every excluded app's traffic just times out (verified directly with `mullvad-exclude curl`, not
-  Firefox-specific). Confirmed via conntrack, and confirmed with a trivial non-cgroup test rule, that
-  nftables' `type route hook output` chain isn't triggering its automatic FIB re-lookup on mark change
-  at all on this system — a kernel/nftables-level bug, not a config issue. Ruled out: quantum
-  resistance, GotaTun vs kernel WireGuard, our own `mullvad-tailscale.nix` insertions, stale
-  split-tunnel PID registration, stale daemon state (fresh `systemctl restart mullvad-daemon` didn't
-  help either). Not a version regression — `flake.lock`/`mullvad-vpn` (2026.4) hasn't changed since
-  2026-08-31, a week before this feature was even added (2026-09-06), so it may never have actually
-  worked end-to-end. Workaround until fixed: fully `mullvad disconnect` when Firefox needs to bypass
-  the VPN, `mullvad connect` after. Matches Mullvad's own open GitHub issue #3813 ("Exclusion by
-  cgroup"). Next step if revisited: check kernel/nftables version compat or file upstream.
+- **Firefox split-tunnel exclusion — RESOLVED 2026-10-10, root cause: kernel regression, not config.**
+  Found broken 2026-09-13: `mullvad-exclude`d processes (Firefox included) got correctly placed in
+  the `mullvad-exclusions` cgroup and Mullvad's own nftables rules correctly tagged their packets for
+  bypass (ct mark `0x00000f41`, meta mark `0x6d6f6c65`), but the kernel never re-routed them out the
+  physical interface — they got routed into `wg0-mullvad` anyway and Mullvad's own leak-prevention
+  rule silently dropped them there (verified directly with `mullvad-exclude curl`, not Firefox-specific).
+  Root cause, confirmed 2026-10-10 by bisecting package closures of two system generations: **the
+  live/running system had silently drifted from what was committed in git** — someone ran an
+  uncommitted `nix flake update` + rebuild + switch around 2026-09-10/12 (found in `.zsh_history`,
+  never committed, later reverted in the working tree without a matching rebuild), landing kernel
+  `7.2.4` while `nftables` (1.1.6, byte-identical store hash), `mullvad-vpn` (2026.4), and `iproute2`
+  stayed exactly the same version on both sides. Rebuilding+rebooting into the actually-committed
+  config (kernel `7.2.2`) fixed it immediately — `mullvad-exclude curl https://am.i.mullvad.net/connected`
+  now correctly shows the real IP, and Firefox confirmed working end-to-end for F1 TV. So: kernel
+  `7.2.4`'s netfilter/nftables code fails to trigger the automatic FIB re-lookup in `type route hook
+  output` chains on mark change; `7.2.2` does it correctly. (Tangentially consistent with CVE-2026-72254,
+  an unrelated-but-real `nft_fib` regression that was actively being patched in kernel point releases
+  around this time — not a confirmed match, but corroborates that nftables FIB code was fragile in this
+  window.) Ruled out during the original investigation: quantum resistance, GotaTun vs kernel WireGuard,
+  our own `mullvad-tailscale.nix` insertions (dated 2026-08-02, well before the breakage), stale
+  split-tunnel PID registration, stale daemon state. Mullvad's own GitHub issue #3813 ("Exclusion by
+  cgroup") is actually closed (since Dec 2024) — a maintainer there recommends network namespaces over
+  cgroup exclusion for reliability, which is worth considering if this regresses again.
+  **Fix applied**: none pinned, deliberately. `boot.kernelPackages` stayed on `linuxPackages_latest`
+  — rebuilding+rebooting into `7.2.2` first confirmed the regression was kernel-specific, then
+  nixpkgs was bumped forward again (`nix flake update nixpkgs`, 2026-08-29 → 2026-10-08, landing
+  kernel `7.2.9`) and the exclusion was re-confirmed working on *that* kernel too. So `7.2.4`
+  specifically regressed; `7.2.2` and `7.2.9` are both fine — chose currency (security updates)
+  over defensively pinning against one bad point release. Not fully bisected within the bad range
+  — only `7.2.2`-good/`7.2.4`-bad/`7.2.9`-good are confirmed. If this regresses on a future kernel
+  bump, re-test with the direct repro first (bypasses Firefox entirely):
+  `/run/wrappers/bin/mullvad-exclude curl https://am.i.mullvad.net/connected` should show the real
+  IP, not Mullvad's.
+  **Also found and fixed in the same session**: the live system had silently drifted from git
+  *again* — the next `nix flake update nixpkgs` was run while an old, unrelated uncommitted
+  drift (9 other inputs incl. `spicetify-nix`, `home-manager`, `nixos-hardware`, `disko`, DMS,
+  `sysc-greet`) was still sitting in the working tree from the original 2026-09 incident, instead
+  of on a clean checkout — producing a flake.lock with 10 changed inputs instead of 1 and breaking
+  `nixos-rebuild` (`error: undefined variable 'betterGenres'`, a since-renamed spicetify-nix
+  extension pulled in by that drift). Lesson: always check `git diff flake.lock` only touches the
+  input you targeted before building/switching — `nix flake update <input>` only adds that input's
+  change, but it doesn't clean up any *other* uncommitted drift already sitting in the lockfile.
 - **Desktop crashes (green screen), under investigation**: two crashes (2026-07-21, 2026-07-24)
   traced to Xid 56 (display engine error) caused by GPU BAR1 mapping exhaustion during Brave
   hardware video decode (VA-API → nvidia-vaapi-driver → nvidia-drm). Switched
