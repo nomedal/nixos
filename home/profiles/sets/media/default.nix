@@ -21,7 +21,6 @@ in {
       skipStats
       songStats
       history
-      betterGenres
       adblock
       volumePercentage
       beautifulLyrics
