@@ -73,12 +73,19 @@ let
     ${pkgs.nftables}/bin/nft add rule inet mullvad tsfix meta mark 0x6d6f6c65 ct mark set 0x00000f41 2>/dev/null || true
     ${pkgs.nftables}/bin/nft add rule inet mullvad tsfix meta mark and 0xff0000 == 0x80000 ct mark set 0x00000f42 2>/dev/null || true
 
-    # routing: Mullvad's policy rule (5209) intercepts Tailscale IPs before table 52.
-    # Add a higher-priority rule so 100.64.0.0/10 is routed via Tailscale's table.
-    ${pkgs.iproute2}/bin/ip rule del to 100.64.0.0/10 priority 5200 2>/dev/null || true
-    ${pkgs.iproute2}/bin/ip rule del from 100.64.0.0/10 priority 5200 2>/dev/null || true
-    ${pkgs.iproute2}/bin/ip rule add to 100.64.0.0/10 priority 5200 lookup 52
-    ${pkgs.iproute2}/bin/ip rule add from 100.64.0.0/10 priority 5200 lookup 52
+    # routing: Mullvad's catch-all policy rules (5198/5199 as of 2026.5; were 5209 in
+    # older versions) send everything not split-tunnel-marked into its own table, before
+    # Tailscale's table 52 is ever consulted. Add a rule well ahead of them so
+    # 100.64.0.0/10 is routed via Tailscale's table. Addresses not in table 52 fall
+    # through to the later rules as before.
+    # (5200 was the old priority; it ended up behind Mullvad's 5199 and did nothing. Delete
+    # any leftover copies.)
+    for prio in 5200 5100; do
+      ${pkgs.iproute2}/bin/ip rule del to 100.64.0.0/10 priority $prio 2>/dev/null || true
+      ${pkgs.iproute2}/bin/ip rule del from 100.64.0.0/10 priority $prio 2>/dev/null || true
+    done
+    ${pkgs.iproute2}/bin/ip rule add to 100.64.0.0/10 priority 5100 lookup 52
+    ${pkgs.iproute2}/bin/ip rule add from 100.64.0.0/10 priority 5100 lookup 52
 
     echo "$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S'): Tailscale rules applied" \
       >> /var/log/mullvad-tailscale.log
