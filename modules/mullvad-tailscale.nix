@@ -1,6 +1,6 @@
 # Mullvad + Tailscale coexistence — see temp/mullvad-tailscale-linux.md for rationale.
 #
-# Five problems solved:
+# Six problems solved:
 #   1. Tailscale blocked while Mullvad is active — fixed by injecting nftables exemptions
 #      after every Mullvad connect (NM dispatcher re-runs the fix on each reconnect because
 #      Mullvad tears down its entire nftables table on every cycle).
@@ -29,6 +29,14 @@
 #      wg0-mullvad. That's a legitimate asymmetric-routing case, not spoofing, so switch
 #      to loose reverse-path checking (routed via any interface, not necessarily the
 #      one the packet arrived on).
+#   6. Tailscale (seen from 1.104) installs an iptables `ip mangle OUTPUT` rule that saves
+#      the fwmark into the conntrack mark for any new connection whose mark has bits in
+#      0xff0000: `ct mark set mark and 0xff0000`. That overwrites the whole ct mark, not
+#      just Tailscale's bits. Mullvad's split-tunnel mark 0x6d6f6c65 has bits there too,
+#      so excluded apps lose ct mark 0xf41, Mullvad's masquerade rule stops matching, and
+#      their packets leave wlp6s0 with the tunnel source IP and are dropped. #4's 0xf42
+#      gets clobbered the same way (tailscaled stuck on DERP, no direct paths). Fixed by
+#      a later-priority chain that puts both ct marks back.
 { pkgs, ... }:
 
 let
@@ -50,6 +58,14 @@ let
     ${pkgs.nftables}/bin/nft insert rule inet mullvad mangle meta mark and 0xff0000 == 0x80000 ct mark set 0x00000f42 2>/dev/null || true
     ${pkgs.nftables}/bin/nft insert rule inet mullvad output ct mark 0x00000f42 accept 2>/dev/null || true
     ${pkgs.nftables}/bin/nft insert rule inet mullvad input ct mark 0x00000f42 accept 2>/dev/null || true
+
+    # nftables: re-assert both bypass ct marks after Tailscale clobbers them (problem #6).
+    # Priority -140 runs after both Mullvad's and Tailscale's mangle chains (-150).
+    # Flush first so repeated runs of this script don't stack duplicate rules.
+    ${pkgs.nftables}/bin/nft add chain inet mullvad tsfix '{ type filter hook output priority -140; }' 2>/dev/null || true
+    ${pkgs.nftables}/bin/nft flush chain inet mullvad tsfix 2>/dev/null || true
+    ${pkgs.nftables}/bin/nft add rule inet mullvad tsfix meta mark 0x6d6f6c65 ct mark set 0x00000f41 2>/dev/null || true
+    ${pkgs.nftables}/bin/nft add rule inet mullvad tsfix meta mark and 0xff0000 == 0x80000 ct mark set 0x00000f42 2>/dev/null || true
 
     # routing: Mullvad's policy rule (5209) intercepts Tailscale IPs before table 52.
     # Add a higher-priority rule so 100.64.0.0/10 is routed via Tailscale's table.

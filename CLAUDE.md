@@ -33,6 +33,9 @@ Read this fully before touching any files.
     `linuxPackages_latest`, nixpkgs 2026-10-08). Root cause was a kernel regression specific to
     7.2.4 — see Known issues below. Not pinned; if this regresses on a future kernel bump, check
     the kernel version first (symptom + fix history below) before re-investigating config/nftables.
+  - **Broke again 2026-10-25, cause: Tailscale 1.104, fixed in config** — see "Tailscale clobbers
+    Mullvad's ct marks" in Known issues. Two distinct failure causes now exist with the same symptom
+    (excluded traffic silently dropped); a packet trace (`nft monitor trace`) tells them apart.
   - **Must call the setuid wrapper** `${config.security.wrapperDir}/mullvad-exclude`
     (`/run/wrappers/bin/...`, from `services.mullvad-vpn.enableExcludeWrapper = true`), NOT
     `${pkgs.mullvad}/bin/mullvad-exclude`. The plain store binary can't write
@@ -78,6 +81,19 @@ Read this fully before touching any files.
   `systemctl --user start easyeffects`. Note the laptop currently has no `990DT`/`SM58-Disco`
   presets declared (those are desktop-only in `home/desktop.nix`), so an unbypassed laptop EE still
   runs an empty effects chain.
+- **Tailscale clobbers Mullvad's ct marks — FIXED 2026-10-25** (`modules/mullvad-tailscale.nix`,
+  problem #6). Symptom: `mullvad-exclude curl` times out (Firefox split-tunnel dead) on a known-good
+  kernel, and Tailscale peers stay on DERP (no direct paths). Cause: Tailscale 1.104.1 (from the
+  2026-10-11 nixpkgs bump) adds an iptables `ip mangle OUTPUT` rule
+  `ct state new meta mark & 0xff0000 != 0 → ct mark set mark and 0xff0000`, which overwrites the
+  *whole* ct mark. Mullvad's bypass mark `0x6d6f6c65` has bits in `0xff0000`, so ct mark `0xf41` gets
+  replaced by `0x6f0000`, Mullvad's `ct mark 0xf41 masquerade` no longer matches, and the rerouted
+  packet leaves `wlp6s0` with the tunnel source IP (dropped upstream). Our own `0xf42`
+  (tailscaled bypass) was clobbered the same way. Found with an `nft monitor trace`: the reroute to
+  `wlp6s0` happened, but the masquerade rule didn't match. Fix: the `tsfix` chain in `inet mullvad` at
+  output priority -140 (after both -150 mangle chains) re-sets ct mark `0xf41`/`0xf42` from the
+  packet mark. Verified live: excluded curl shows the real IP; rp4 (LAN) and the hel VPS went direct.
+  `nft` is not in PATH — use `nix shell nixpkgs#nftables` or the store path.
 - **Firefox split-tunnel exclusion — RESOLVED 2026-10-10, root cause: kernel regression, not config.**
   Found broken 2026-09-13: `mullvad-exclude`d processes (Firefox included) got correctly placed in
   the `mullvad-exclusions` cgroup and Mullvad's own nftables rules correctly tagged their packets for
