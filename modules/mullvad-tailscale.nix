@@ -37,12 +37,18 @@
 #      their packets leave wlp6s0 with the tunnel source IP and are dropped. #4's 0xf42
 #      gets clobbered the same way (tailscaled stuck on DERP, no direct paths). Fixed by
 #      a later-priority chain that puts both ct marks back.
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 let
+  # The `mullvad` CLI ships with the daemon package (pkgs.mullvad), not the GUI's
+  # pkgs.mullvad-vpn, whose bin/ only has `mullvad-vpn`. Calling the wrong one fails
+  # silently (stderr is discarded): the fix script always hit its 45s wait timeout and
+  # mullvad-watch never saw "Connected", so it stopped bouncing NM after 2026-08-27.
+  mullvadCli = config.services.mullvad-vpn.package;
+
   mullvadTailscaleFix = pkgs.writeShellScript "mullvad-tailscale-fix" ''
     for i in $(seq 1 45); do
-      if ${pkgs.mullvad-vpn}/bin/mullvad status 2>/dev/null | grep -q "Connected"; then
+      if ${mullvadCli}/bin/mullvad status 2>/dev/null | grep -q "Connected"; then
         break
       fi
       sleep 1
@@ -107,7 +113,7 @@ in
     description = "Mullvad disconnect watcher";
     after = [ "network.target" "mullvad-daemon.service" ];
     wantedBy = [ "multi-user.target" ];
-    path = with pkgs; [ mullvad-vpn networkmanager coreutils ];
+    path = [ mullvadCli ] ++ (with pkgs; [ networkmanager coreutils ]);
     serviceConfig = {
       ExecStart = pkgs.writeShellScript "mullvad-watch" ''
         LAST_STATE=""

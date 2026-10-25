@@ -94,6 +94,12 @@ Read this fully before touching any files.
   output priority -140 (after both -150 mangle chains) re-sets ct mark `0xf41`/`0xf42` from the
   packet mark. Verified live: excluded curl shows the real IP; rp4 (LAN) and the hel VPS went direct.
   `nft` is not in PATH — use `nix shell nixpkgs#nftables` or the store path.
+- **`mullvad` CLI is in `pkgs.mullvad`, not `pkgs.mullvad-vpn`** (fixed 2026-10-25): `mullvad-vpn`
+  (the GUI) only ships `bin/mullvad-vpn`. `modules/mullvad-tailscale.nix` called
+  `${pkgs.mullvad-vpn}/bin/mullvad`, which failed silently (stderr discarded). The tailscale fix script
+  always hit its 45s "wait for Connected" timeout, and `mullvad-watch` never saw "Connected", so it
+  silently stopped bouncing NM after a disconnect (last success 2026-08-27). Now uses
+  `config.services.mullvad-vpn.package` (the daemon package) so the CLI always matches the daemon.
 - **Firefox split-tunnel exclusion — RESOLVED 2026-10-10, root cause: kernel regression, not config.**
   Found broken 2026-09-13: `mullvad-exclude`d processes (Firefox included) got correctly placed in
   the `mullvad-exclusions` cgroup and Mullvad's own nftables rules correctly tagged their packets for
