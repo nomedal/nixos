@@ -42,6 +42,16 @@ Read this fully before touching any files.
     `/sys/fs/cgroup/net_cls/mullvad-exclusions/cgroup.procs` as a normal user — it errors and never
     launches Firefox (symptom: clicking Firefox does nothing). First cut of this used the store
     binary and hit exactly that.
+- **WebGPU browser games**: `chromium-webgpu` launcher ("Chromium (WebGPU)" in the app menu,
+  `modules/workstation.nix`), using its own profile at `~/.config/chromium-webgpu`. Stock
+  Brave/Chromium on this setup only offer WebGPU through an ANGLE-OpenGL "Compatibility Mode"
+  adapter, so core-WebGPU games (Azeroth Survivors) fell back to CPU rendering: heavy lag and an
+  overheating CPU. Fix: Vulkan compositor (`--use-angle=vulkan` + Vulkan features). Dawn only
+  offers the GPU adapter that matches the compositor backend. It runs under XWayland
+  (`--ozone-platform=x11`) because Vulkan compositing on native Wayland gives an empty
+  transparent window (seen in Brave 2026-10-30). Firefox's WebGPU flag didn't work either: the
+  game stuck at loading. Verify in `chrome://gpu` → Dawn Info: "Vulkan backend - NVIDIA GeForce
+  RTX 3070: Available". Verified on the desktop only so far.
 - Docker, Flatpak, Tailscale, printing (CUPS)
 - Spotify: managed by `spicetify-nix` (`github:gerg-l/spicetify-nix` flake input) — do NOT use
   Flatpak or nixpkgs spotify. spicetify-nix pins a working Spotify version and wraps it with

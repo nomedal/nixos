@@ -71,6 +71,36 @@ let
       $out/share/applications/signal.desktop \
       --replace-fail "Exec=signal-desktop %U" "Exec=$out/bin/signal-desktop %U"
   '';
+
+  # Chromium with WebGPU on the real GPU over Vulkan, for WebGPU games
+  # (e.g. Azeroth Survivors). A separate launcher + profile so Brave and plain
+  # Chromium keep their normal Wayland/GL setup. Verified on desktop
+  # (RTX 3070, 2026-10-30) via chrome://gpu → Dawn Info: "Vulkan backend -
+  # NVIDIA GeForce RTX 3070: Available".
+  # - Stock Chromium/Brave only give WebGPU an ANGLE-OpenGL "Compatibility
+  #   Mode" adapter (plus a blocklisted SwiftShader CPU one); the game needs
+  #   core WebGPU, so it fell back to CPU rendering (lag, CPU overheating).
+  # - Dawn only exposes the GPU adapter matching the compositor's backend, so
+  #   the compositor itself must run on Vulkan (--use-angle=vulkan +
+  #   Vulkan features).
+  # - Vulkan compositing on native Wayland renders an empty transparent window
+  #   (tried in Brave), hence --ozone-platform=x11 (XWayland).
+  chromium-webgpu = pkgs.writeShellScriptBin "chromium-webgpu" ''
+    exec ${pkgs.chromium}/bin/chromium \
+      --user-data-dir="''${XDG_CONFIG_HOME:-$HOME/.config}/chromium-webgpu" \
+      --ozone-platform=x11 \
+      --use-angle=vulkan --use-vulkan=native \
+      --enable-unsafe-webgpu --ignore-gpu-blocklist \
+      --enable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan \
+      "$@"
+  '';
+  chromium-webgpu-desktop = pkgs.makeDesktopItem {
+    name = "chromium-webgpu";
+    desktopName = "Chromium (WebGPU)";
+    exec = "${chromium-webgpu}/bin/chromium-webgpu %U";
+    icon = "chromium";
+    categories = [ "Network" "WebBrowser" "Game" ];
+  };
 in
 {
   imports = [
@@ -226,6 +256,8 @@ in
     # Applications
     brave
     chromium
+    chromium-webgpu          # Chromium with Vulkan WebGPU for browser games (see let-block)
+    chromium-webgpu-desktop
     firefox-split-tunnel   # Firefox, always launched via `mullvad-exclude` (see let-block)
     bitwarden-desktop
     obsidian
