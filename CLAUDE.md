@@ -53,6 +53,16 @@ Read this fully before touching any files.
   game stuck at loading. Verify in `chrome://gpu` → Dawn Info: "Vulkan backend - NVIDIA GeForce
   RTX 3070: Available". Verified on the desktop only so far.
 - Docker, Flatpak, Tailscale, printing (CUPS)
+- **Brave is a Flatpak** (`com.brave.Browser`, since 2026-11-09): nixpkgs removed `brave` (no
+  committer among its maintainers to ship security fixes). Declared via the `nix-flatpak` input in
+  `modules/workstation.nix` (`services.flatpak.packages`, daily auto-update timer). Profile lives in
+  `~/.var/app/com.brave.Browser/config/BraveSoftware/` (copied from the old `~/.config/BraveSoftware`,
+  kept as backup). Launch flags go in `~/.var/app/com.brave.Browser/config/brave-flags.conf`, written
+  as a real file by `home.activation.braveFlags` (a store symlink is unreadable inside the sandbox).
+  The sandbox is granted `org.freedesktop.secrets` because cookies/logins are encrypted with the
+  "Brave Safe Storage" gnome-keyring key. NVIDIA: GPU acceleration needs the Flathub
+  `org.freedesktop.Platform.GL.nvidia-<driver-version>` extension matching the running driver exactly
+  (`flatpak list --runtime | grep nvidia`); no VA-API in the sandbox on NVIDIA (no nvidia-vaapi-driver).
 - Spotify: managed by `spicetify-nix` (`github:gerg-l/spicetify-nix` flake input) — do NOT use
   Flatpak or nixpkgs spotify. spicetify-nix pins a working Spotify version and wraps it with
   Spicetify. Configured in `home/profiles/sets/media/default.nix` via `programs.spicetify`. Theme: text.

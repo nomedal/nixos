@@ -28,6 +28,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Declarative Flatpak apps (Brave — removed from nixpkgs 2026-11)
+    nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
+
     dotfiles = {
       url = "git+https://git.nomedal.com/nome/dotfiles.git";
       flake = false;

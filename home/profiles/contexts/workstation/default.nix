@@ -7,7 +7,7 @@
 
   home.sessionVariables = {
     TERMINAL = "wezterm";
-    BROWSER  = "brave";
+    BROWSER  = "/var/lib/flatpak/exports/bin/com.brave.Browser";
   };
 
   programs.dank-material-shell = {
@@ -130,10 +130,10 @@
         "audio/ogg"              = "vlc.desktop";
         "audio/wav"              = "vlc.desktop";
         "audio/x-wav"            = "vlc.desktop";
-        "text/html"              = "brave-browser.desktop";
-        "x-scheme-handler/http"  = "brave-browser.desktop";
-        "x-scheme-handler/https" = "brave-browser.desktop";
-        "x-scheme-handler/ftp"   = "brave-browser.desktop";
+        "text/html"              = "com.brave.Browser.desktop";
+        "x-scheme-handler/http"  = "com.brave.Browser.desktop";
+        "x-scheme-handler/https" = "com.brave.Browser.desktop";
+        "x-scheme-handler/ftp"   = "com.brave.Browser.desktop";
         "text/plain"             = "nvim.desktop";
         "text/x-shellscript"     = "nvim.desktop";
         "text/x-python"          = "nvim.desktop";
@@ -143,7 +143,7 @@
         "application/json"       = "nvim.desktop";
         "application/xml"        = "nvim.desktop";
         "application/x-nix"      = "nvim.desktop";
-        "application/pdf"        = "brave-browser.desktop";
+        "application/pdf"        = "com.brave.Browser.desktop";
       };
     };
   };
@@ -154,4 +154,18 @@
     kdePackages.breeze-icons
     gnome-calculator
   ];
+
+  # Brave (Flatpak, see modules/workstation.nix) launch flags — the same set
+  # the old nixpkgs brave wrapper passed. Written as a real file, not a
+  # home.file symlink: /nix/store isn't visible inside the Flatpak sandbox.
+  home.activation.braveFlags = lib.hm.dag.entryAfter [ "writeBoundary" ] (let
+    flags = pkgs.writeText "brave-flags.conf" ''
+      --ozone-platform-hint=auto
+      --enable-wayland-ime=true
+      --enable-features=AcceleratedVideoDecodeLinuxGL,AcceleratedVideoEncoder,WaylandWindowDecorations
+      --disable-features=OutdatedBuildDetector,UseChromeOSDirectVideoDecoder
+    '';
+  in ''
+    run install -Dm644 ${flags} "$HOME/.var/app/com.brave.Browser/config/brave-flags.conf"
+  '');
 }

@@ -106,6 +106,7 @@ in
   imports = [
     inputs.dms.nixosModules.dank-material-shell
     inputs.sysc-greet.nixosModules.default
+    inputs.nix-flatpak.nixosModules.nix-flatpak
     ./mullvad-tailscale.nix
   ];
 
@@ -179,7 +180,25 @@ in
   services.mullvad-vpn.enable = true;
   virtualisation.docker.enable = true;
   programs.dconf.enable = true;
-  services.flatpak.enable = true;
+  services.flatpak = {
+    enable = true;
+    # Managed by nix-flatpak: installed system-wide on switch, flathub remote
+    # added automatically. Brave lives here because it was removed from
+    # nixpkgs (2026-11, no committer among its maintainers to ship security
+    # fixes). Flathub's com.brave.Browser is published by Brave Software.
+    # Profile: ~/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser
+    # Flags:   ~/.var/app/com.brave.Browser/config/brave-flags.conf (home/profiles/contexts/workstation)
+    # GPU on NVIDIA needs the Flathub extension org.freedesktop.Platform.GL.nvidia-<driver version>
+    # to exist for the exact host driver version, else Brave falls back to software rendering.
+    packages = [ "com.brave.Browser" ];
+    # Cookies/saved logins are encrypted with the "Brave Safe Storage" key in
+    # gnome-keyring — make sure the sandbox can always reach it.
+    overrides."com.brave.Browser"."Session Bus Policy"."org.freedesktop.secrets" = "talk";
+    update.auto = {
+      enable = true;
+      onCalendar = "daily";
+    };
+  };
 
   # Fonts
   fonts = {
@@ -254,7 +273,6 @@ in
     tor-browser
 
     # Applications
-    brave
     chromium
     chromium-webgpu          # Chromium with Vulkan WebGPU for browser games (see let-block)
     chromium-webgpu-desktop
