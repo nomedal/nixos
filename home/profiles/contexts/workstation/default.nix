@@ -168,4 +168,34 @@
   in ''
     run install -Dm644 ${flags} "$HOME/.var/app/com.brave.Browser/config/brave-flags.conf"
   '');
+
+  # One-way migration of the old native Brave profile into the Flatpak sandbox.
+  # Runs on every activation (each rebuild + each boot via home-manager-<user>.service), but
+  # only acts when the native profile is the newer one: Flatpak profile missing, or its
+  # `Local State` older than the native one (Brave started fresh before the copy happened).
+  # Once the Flatpak profile has been used, it is newer and this is a no-op, so a host that
+  # already migrated (by hand or by this) is never overwritten. A stale Flatpak profile is
+  # moved aside, never deleted.
+  home.activation.braveProfileMigrate = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    native="$HOME/.config/BraveSoftware"
+    fp_dir="$HOME/.var/app/com.brave.Browser/config"
+    fp="$fp_dir/BraveSoftware"
+    if [ -f "$native/Brave-Browser/Local State" ] \
+       && { [ ! -f "$fp/Brave-Browser/Local State" ] \
+            || [ "$native/Brave-Browser/Local State" -nt "$fp/Brave-Browser/Local State" ]; }; then
+      if ${pkgs.procps}/bin/pgrep -u "$(id -u)" -x brave >/dev/null; then
+        warnEcho "Brave profile migration skipped: Brave is running. Quit it and rebuild/reboot."
+      else
+        if [ -e "$fp" ]; then
+          backup="$fp.stale-$(date +%Y%m%d-%H%M%S)"
+          verboseEcho "Moving stale Flatpak Brave profile to $backup"
+          run mv "$fp" "$backup"
+        fi
+        noteEcho "Copying native Brave profile into the Flatpak sandbox"
+        run mkdir -p "$fp_dir"
+        run cp -a "$native" "$fp"
+        run rm -f "$fp"/Brave-Browser/Singleton*
+      fi
+    fi
+  '';
 }

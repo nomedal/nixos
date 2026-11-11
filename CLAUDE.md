@@ -56,8 +56,12 @@ Read this fully before touching any files.
 - **Brave is a Flatpak** (`com.brave.Browser`, since 2026-11-09): nixpkgs removed `brave` (no
   committer among its maintainers to ship security fixes). Declared via the `nix-flatpak` input in
   `modules/workstation.nix` (`services.flatpak.packages`, daily auto-update timer). Profile lives in
-  `~/.var/app/com.brave.Browser/config/BraveSoftware/` (copied from the old `~/.config/BraveSoftware`,
-  kept as backup). Launch flags go in `~/.var/app/com.brave.Browser/config/brave-flags.conf`, written
+  `~/.var/app/com.brave.Browser/config/BraveSoftware/`, copied from the old `~/.config/BraveSoftware`
+  (kept as backup) by `home.activation.braveProfileMigrate`. It runs on every rebuild and boot, but
+  only copies when the Flatpak profile is missing or its `Local State` is older than the native one.
+  A stale Flatpak profile is moved to `BraveSoftware.stale-<timestamp>`, never deleted. It skips if
+  Brave is running. (Added 2026-11-11: the original migration was a manual step that never happened
+  on the desktop, so Flatpak Brave started with a blank profile.) Launch flags go in `~/.var/app/com.brave.Browser/config/brave-flags.conf`, written
   as a real file by `home.activation.braveFlags` (a store symlink is unreadable inside the sandbox).
   The sandbox is granted `org.freedesktop.secrets` because cookies/logins are encrypted with the
   "Brave Safe Storage" gnome-keyring key. NVIDIA: GPU acceleration needs the Flathub
